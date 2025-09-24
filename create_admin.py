@@ -2,7 +2,7 @@ from app import create_app
 app, socketio = create_app()
 with app.app_context():
     from app import models
-    success = models.create_user("admin", "Anonymous1997", is_admin=True)
+    success = models.create_user("admin", "Admin1234", is_admin=True)
     if success:
         print("Admin-Benutzer 'admin' erstellt.")
     else:
