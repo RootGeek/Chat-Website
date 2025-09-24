@@ -1,0 +1,481 @@
+<!doctype html> 
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>Admin-Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <style>
+    :root {
+      --bg:#0f111a;
+      --card:#1f2235;
+      --text:#c8f7c5;
+      --muted:#6f7a9b;
+      --accent:#00ff7f;
+      --border:rgba(0,255,127,0.3);
+      font-family: "Courier New", monospace;
+    }
+    body { margin:0; background: var(--bg); color: var(--text); }
+    .container { max-width: 1150px; margin: 30px auto; padding: 0 16px; }
+    .top-bar { display:flex; justify-content: space-between; align-items:center; gap:12px; margin-bottom:6px; }
+    h1 { margin:0; letter-spacing:1px; font-size:26px; }
+    .controls { display:flex; gap:10px; align-items:center; }
+    .flash { padding:12px 16px; border-radius:6px; margin-bottom:14px; font-size:13px; overflow:hidden; transition: opacity .4s ease, max-height .4s ease; }
+    .flash.success { background: rgba(0,255,127,0.08); border:1px solid var(--accent); }
+    .flash.error { background: rgba(255,80,80,0.08); border:1px solid #ff5050; }
+    .card { background: var(--card); padding:18px; border-radius:8px; box-shadow:0 30px 80px -10px rgba(0,255,127,0.2); margin-bottom:24px; border:1px solid var(--border); }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    th, td { padding:12px 14px; text-align:left; border-bottom:1px solid var(--border); }
+    th { background: rgba(15,17,26,0.8); }
+    .badge { padding:4px 8px; border-radius:4px; font-size:11px; display:inline-block; }
+    .badge.admin { background:#10b981; color:#0f111a; }
+    .badge.blocked { background:#ff4f4f; color:#111; }
+    .small { font-size:12px; color: var(--muted); }
+    .btn { padding:6px 10px; border:none; border-radius:5px; cursor:pointer; font-size:12px; font-family:inherit; display:inline-flex; align-items:center; gap:4px; }
+    .btn-primary { background: var(--accent); color:#0f111a; }
+    .btn-danger { background:#dc2626; color:white; }
+    .btn-secondary { background:#6b7280; color:white; }
+    .inline-form { display:inline-block; margin:0; }
+    input[type="text"], input[type="password"] { padding:6px 10px; background:#0f1225; border:1px solid var(--border); border-radius:4px; color: var(--text); font-family:inherit; }
+    a { color: var(--accent); text-decoration:none; }
+    .chart-wrapper { position: relative; height:220px; margin-bottom:20px; }
+    .header-row { display:flex; align-items:center; gap:12px; justify-content: space-between; }
+
+    .updated {
+      animation: flashbg 1s ease-in-out;
+    }
+    @keyframes flashbg {
+      0% { background: rgba(0,255,127,0.25); }
+      100% { background: var(--card); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Hidden container for passing current admin ID without putting Jinja in JS -->
+    <div id="admin-root" data-self-id="{{ current_user.id }}" style="display:none;"></div>
+
+    <div class="top-bar">
+      <div>
+        <h1>🧅 Admin-Dashboard</h1>
+      </div>
+      <div class="controls">
+        <button class="btn btn-secondary" id="back-to-chat-btn">Back to Chat</button>
+      </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for cat, msg in messages %}
+          <div class="flash {{ cat }}">{{ msg }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="card">
+      <div class="header-row">
+        <div>
+          <h2 style="margin:0;">Active Users Per Day</h2>
+        </div>
+        <div>
+          <button class="btn btn-secondary" id="refresh-active-users-btn">Refresh</button>
+        </div>
+      </div>
+      <div class="chart-wrapper">
+        <canvas id="activeUsersChart"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0;">Create New User</h2>
+      <form method="post" action="{{ url_for('admin.create_user') }}" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div>
+          <label>Username<br>
+            <input type="text" name="username" required>
+          </label>
+        </div>
+        <div>
+          <label>Password<br>
+            <input type="password" name="password" required>
+          </label>
+        </div>
+        <div style="display:flex; flex-direction:column; justify-content:flex-end;">
+          <label style="font-size:12px;"><input type="checkbox" name="is_admin"> Admin</label>
+        </div>
+        <div>
+          <button class="btn btn-primary" type="submit">Create</button>
+        </div>
+      </form>
+      <p class="small">Admin users haben extra Privilegien (block/unblock etc.).</p>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0;">User Management</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th>Ban Reason</th>
+            <th>Strikes</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="user-table-body">
+          {% for u in users %}
+            <tr data-username="{{ u.username }}">
+              <td>{{ u.username }}</td>
+              <td>
+                {% if u.is_admin %}
+                  <span class="badge admin">Admin</span>
+                {% else %}
+                  User
+                {% endif %}
+              </td>
+              <td>
+                {% if u.is_blocked %}
+                  <span class="badge blocked">Blocked</span>
+                {% else %}
+                  Active
+                {% endif %}
+              </td>
+              <td>{{ u.ban_reason or "-" }}</td>
+              <td>{{ u.strike_count or 0 }}</td>
+              <td class="actions">
+                {% if not u.is_blocked %}
+                  <form method="post" action="{{ url_for('admin.block', user_id=u.id) }}" class="inline-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="reason" value="Admin block">
+                    <button class="btn btn-danger" type="submit">Block</button>
+                  </form>
+                {% else %}
+                  <form method="post" action="{{ url_for('admin.unblock', user_id=u.id) }}" class="inline-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-secondary" type="submit">Unblock</button>
+                  </form>
+                {% endif %}
+                <form method="post" action="{{ url_for('admin.reset_strikes', user_id=u.id) }}" class="inline-form">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button class="btn btn-primary" type="submit">Reset Strikes</button>
+                </form>
+                {% if u.id != current_user.id %}
+                  <form method="post" action="{{ url_for('admin.delete_user', user_id=u.id) }}" class="inline-form" onsubmit="return confirm('Delete user {{ u.username|e }}? This cannot be undone.');" style="display:inline-block;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-danger" type="submit" style="margin-left:4px;">Delete</button>
+                  </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          {% if users|length == 0 %}
+            <tr><td colspan="6" style="text-align:center;">No users found.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script nonce="{{ csp_nonce }}" src="https://cdn.socket.io/4.7.1/socket.io.min.js"></script>
+  <script nonce="{{ csp_nonce }}" src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <script nonce="{{ csp_nonce }}">
+    // Auto-dismiss flashes after 3 seconds
+    function scheduleFlashCleanup() {
+      document.querySelectorAll(".flash").forEach(f => {
+        setTimeout(() => {
+          f.style.opacity = "0";
+          f.style.maxHeight = "0";
+          setTimeout(() => {
+            if (f.parentElement) f.remove();
+          }, 500);
+        }, 3000);
+      });
+    }
+    scheduleFlashCleanup();
+
+    // CSRF token from meta
+    const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content || "";
+
+    // Back to chat button (CSP-safe)
+    const backBtn = document.getElementById("back-to-chat-btn");
+    if (backBtn) {
+      backBtn.addEventListener("click", () => {
+        window.location.href = "/chat/";
+      });
+    }
+
+    // Refresh active users button (CSP-safe)
+    const refreshBtn = document.getElementById("refresh-active-users-btn");
+    if (refreshBtn) {
+      refreshBtn.addEventListener("click", () => {
+        loadActiveUsers();
+      });
+    }
+
+    // Determine own admin ID
+    const ADMIN_SELF_ID = (() => {
+      const el = document.getElementById("admin-root");
+      if (!el) return null;
+      const v = el.dataset.selfId;
+      return v ? parseInt(v, 10) : null;
+    })();
+
+    let chartInstance = null;
+    async function loadActiveUsers() {
+      try {
+        // historische täglichen aktiven Benutzer holen
+        const res = await fetch('/admin/metrics/active_users?days=14');
+        const data = await res.json();
+        const labelsBase = data.map(d => d.day);
+        const counts = data.map(d => d.count);
+
+        // aktuell online holen
+        let onlineNow = 0;
+        try {
+          const onlineRes = await fetch('/admin/metrics/online_now');
+          const onlineData = await onlineRes.json();
+          onlineNow = onlineData.online_now ?? 0;
+        } catch (err) {
+          console.warn("Failed to fetch online_now:", err);
+        }
+
+        // Labels erweitern um "Jetzt"
+        const labels = [...labelsBase, "Jetzt"];
+        const dailyData = [...counts, null];
+        const onlineDatasetData = Array(counts.length).fill(null).concat([onlineNow]);
+
+        const ctx = document.getElementById('activeUsersChart').getContext('2d');
+
+        if (chartInstance) {
+          chartInstance.data.labels = labels;
+          chartInstance.data.datasets[0].data = dailyData;
+          chartInstance.data.datasets[1].data = onlineDatasetData;
+          chartInstance.update();
+          return;
+        }
+
+        chartInstance = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [
+              {
+                label: 'Daily Active Users',
+                data: dailyData,
+                backgroundColor: 'rgba(0,255,127,0.4)',
+                borderColor: 'rgba(0,255,127,1)',
+                borderWidth: 1,
+                hoverBackgroundColor: 'rgba(0,255,127,0.6)',
+              },
+              {
+                label: 'Currently Online',
+                data: onlineDatasetData,
+                backgroundColor: 'rgba(255,215,0,0.4)',
+                borderColor: 'rgba(255,215,0,1)',
+                borderWidth: 1,
+                hoverBackgroundColor: 'rgba(255,215,0,0.6)',
+              }
+            ]
+          },
+          options: {
+            scales: {
+              x: {
+                ticks: { color: '#c8f7c5' },
+                grid: { display: false }
+              },
+              y: {
+                beginAtZero: true,
+                ticks: { color: '#c8f7c5' },
+                grid: { color: 'rgba(255,255,255,0.05)' }
+              }
+            },
+            plugins: {
+              legend: { labels: { color: '#c8f7c5' } },
+              tooltip: {
+                backgroundColor: '#1f2235',
+                titleColor: '#00ff7f',
+                bodyColor: '#c8f7c5',
+              }
+            },
+            responsive: true,
+            maintainAspectRatio: false,
+          }
+        });
+      } catch (e) {
+        console.error("Error loading metrics:", e);
+      }
+    }
+    loadActiveUsers();
+
+    function makeActionForm(actionUrl, hiddenFields = {}, buttonText, btnClass, confirmMessage = null) {
+      const form = document.createElement("form");
+      form.method = "post";
+      form.action = actionUrl;
+      form.classList.add("inline-form");
+      form.style.display = "inline-block";
+
+      // CSRF token
+      const csrfInput = document.createElement("input");
+      csrfInput.type = "hidden";
+      csrfInput.name = "csrf_token";
+      csrfInput.value = CSRF_TOKEN;
+      form.appendChild(csrfInput);
+
+      // extra hidden fields
+      for (const [k, v] of Object.entries(hiddenFields)) {
+        const inp = document.createElement("input");
+        inp.type = "hidden";
+        inp.name = k;
+        inp.value = v;
+        form.appendChild(inp);
+      }
+
+      const btn = document.createElement("button");
+      btn.type = "submit";
+      btn.className = btnClass;
+      btn.textContent = buttonText;
+
+      if (confirmMessage) {
+        form.addEventListener("submit", (e) => {
+          if (!confirm(confirmMessage)) {
+            e.preventDefault();
+          }
+        });
+      }
+
+      form.appendChild(btn);
+      return form;
+    }
+
+    function rebuildUserTable(users) {
+      const tbody = document.getElementById("user-table-body");
+      const existing = {};
+      tbody.querySelectorAll("tr[data-username]").forEach(r => {
+        existing[r.dataset.username] = r;
+      });
+
+      users.forEach(u => {
+        const username = u.username;
+        let row = existing[username];
+        const isBlocked = !!u.is_blocked;
+        const isAdmin = !!u.is_admin;
+        const banReason = u.ban_reason || "-";
+        const strikes = u.strike_count || 0;
+
+        function buildRow() {
+          const tr = document.createElement("tr");
+          tr.dataset.username = username;
+
+          const tdUser = document.createElement("td");
+          tdUser.textContent = username;
+          tr.appendChild(tdUser);
+
+          const tdRole = document.createElement("td");
+          if (isAdmin) {
+            const span = document.createElement("span");
+            span.className = "badge admin";
+            span.textContent = "Admin";
+            tdRole.appendChild(span);
+          } else {
+            tdRole.textContent = "User";
+          }
+          tr.appendChild(tdRole);
+
+          const tdStatus = document.createElement("td");
+          if (isBlocked) {
+            const span = document.createElement("span");
+            span.className = "badge blocked";
+            span.textContent = "Blocked";
+            tdStatus.appendChild(span);
+          } else {
+            tdStatus.textContent = "Active";
+          }
+          tr.appendChild(tdStatus);
+
+          const tdBan = document.createElement("td");
+          tdBan.textContent = banReason;
+          tr.appendChild(tdBan);
+
+          const tdStrikes = document.createElement("td");
+          tdStrikes.textContent = strikes;
+          tr.appendChild(tdStrikes);
+
+          const tdActions = document.createElement("td");
+          if (!isBlocked) {
+            tdActions.appendChild(makeActionForm(`/admin/block/${u.id}`, { reason: "Admin block" }, "Block", "btn btn-danger"));
+          } else {
+            tdActions.appendChild(makeActionForm(`/admin/unblock/${u.id}`, {}, "Unblock", "btn btn-secondary"));
+          }
+          tdActions.appendChild(makeActionForm(`/admin/reset_strikes/${u.id}`, {}, "Reset Strikes", "btn btn-primary"));
+          if (u.id !== ADMIN_SELF_ID) {
+            tdActions.appendChild(
+              makeActionForm(
+                `/admin/delete_user/${u.id}`,
+                {},
+                "Delete",
+                "btn btn-danger",
+                `Delete user ${username}? This cannot be undone.`
+              )
+            );
+          }
+          tr.appendChild(tdActions);
+          return tr;
+        }
+
+        if (row) {
+          const needsUpdate =
+            row.children[1].innerText.trim() !== (isAdmin ? "Admin" : "User") ||
+            row.children[2].innerText.trim() !== (isBlocked ? "Blocked" : "Active") ||
+            row.children[3].innerText.trim() !== banReason ||
+            row.children[4].innerText.trim() !== String(strikes);
+
+          if (needsUpdate) {
+            const newRow = buildRow();
+            newRow.classList.add("updated");
+            row.replaceWith(newRow);
+            setTimeout(() => newRow.classList.remove("updated"), 1200);
+          }
+          delete existing[username];
+        } else {
+          const newRow = buildRow();
+          newRow.classList.add("updated");
+          tbody.appendChild(newRow);
+          setTimeout(() => newRow.classList.remove("updated"), 1200);
+        }
+      });
+
+      Object.values(existing).forEach(r => r.remove());
+
+      if (users.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No users found.</td></tr>';
+      }
+    }
+
+    // WebSocket für Live-User-Updates
+    const adminSocket = io();
+    adminSocket.on("connect", () => {
+      adminSocket.emit("admin_ui_connect");
+    });
+
+    adminSocket.on("users_update", data => {
+      if (data && Array.isArray(data.users)) {
+        rebuildUserTable(data.users);
+      }
+    });
+
+    // Fallback polling
+    setInterval(async () => {
+      try {
+        const res = await fetch('/admin/users_json');
+        if (!res.ok) return;
+        const users = await res.json();
+        rebuildUserTable(users);
+      } catch (e) {
+        console.error("Polling failed:", e);
+      }
+    }, 10000);
+  </script>
+</body>
+</html>

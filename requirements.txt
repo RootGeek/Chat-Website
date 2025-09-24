@@ -1,0 +1,7 @@
+Flask
+Flask-Login
+Flask-WTF
+Flask-SocketIO
+passlib[argon2]
+python-dotenv  # optional für ENV-Loading
+eventlet  # oder gevent, abhängig von deiner SocketIO-Strategie

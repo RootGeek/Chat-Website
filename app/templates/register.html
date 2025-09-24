@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>🧅 Registration</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <style>
+    :root {
+      --bg:#0f111a;
+      --panel:#1f2235;
+      --text:#c8f7c5;
+      --accent:#00ff7f;
+      --border:rgba(0,255,127,0.3);
+      --muted:#8f99b0;
+      font-family: "Courier New", monospace;
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; background: var(--bg); color: var(--text); display:flex; align-items:center; justify-content:center; min-height:100vh; }
+    .box { background: var(--panel); padding:28px 24px; border-radius:8px; width:380px; position:relative; border:1px solid var(--accent); box-shadow:0 30px 80px -10px rgba(0,255,127,0.25); }
+    h2 { margin:0 0 12px; letter-spacing:1px; }
+    .flash { padding:10px; border-radius:4px; margin-bottom:10px; font-size:13px; }
+    .flash.error { background: rgba(255,80,80,0.1); border:1px solid #ff5050; }
+    .flash.success { background: rgba(0,255,127,0.1); border:1px solid var(--accent); }
+    label { display:block; margin-bottom:10px; font-size:13px; }
+    input { width:100%; padding:12px; background:#0f1225; border:1px solid var(--border); color: var(--text); border-radius:4px; outline:none; font-family:inherit; }
+    button { width:100%; padding:12px; background: var(--accent); border:none; color:#0f111a; font-weight:700; border-radius:4px; cursor:pointer; margin-top:6px; letter-spacing:1px; }
+    .bottom { margin-top:16px; display:flex; flex-direction:column; gap:6px; }
+    .link { font-size:14px; line-height:1.3; text-align:center; }
+    .link a { color: var(--accent); text-decoration:none; }
+    .footer { font-size:13px; color: var(--muted); line-height:1.4; text-align:center; }
+    .captcha-wrapper { margin-bottom:8px; display:flex; flex-direction:column; align-items:center; gap:4px; }
+    .fallback-text { font-size:12px; color: var(--muted); margin-top:4px; display:none; text-align:center; }
+    .captcha-img-container { display:flex; justify-content:center; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h2>🧅 Register</h2>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for cat, msg in messages %}
+          <div class="flash {{ cat }}" role="alert" aria-live="polite">{{ msg }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    <form method="post" action="{{ url_for('auth.register') }}" autocomplete="off" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="username-input">
+        Username
+        <input id="username-input" name="username" required autocomplete="username" type="text" />
+      </label>
+      <label for="password-input">
+        Password
+        <input id="password-input" type="password" name="password" required autocomplete="new-password" />
+      </label>
+      <label for="password2-input">
+        Repeat Password
+        <input id="password2-input" type="password" name="password2" required autocomplete="new-password" />
+      </label>
+      <div class="captcha-wrapper">
+        <div class="captcha-img-container">
+          <img
+            id="captcha-img"
+            src="{{ url_for('auth.captcha_image') }}"
+            alt="Captcha arithmetic challenge"
+            aria-describedby="captcha-fallback"
+            title="Click to refresh"
+            style="margin:6px 0; display:block; cursor:pointer; border:1px solid rgba(0,255,127,0.5); border-radius:4px;"
+          />
+        </div>
+        <label for="captcha-input" style="width:100%;">
+          Answer
+          <input id="captcha-input" name="captcha" required autocomplete="off" type="text" placeholder="Answer" />
+        </label>
+        <div class="link" style="font-size:11px; color: #8f99b0;">Click image to refresh captcha.</div>
+        <div id="captcha-fallback" class="fallback-text">
+          If the image fails to load, solve: <strong>{{ captcha_question }}</strong>
+        </div>
+      </div>
+      <button type="submit">CREATE ACCOUNT</button>
+    </form>
+    <div class="bottom">
+      <div class="link">
+        Already have an account? <a href="{{ url_for('auth.login') }}">Login</a>
+      </div>
+      <div class="footer">
+        Hacker-style Onion Chat. No tracking. Just you &amp; encrypted messages.
+      </div>
+    </div>
+  </div>
+
+  <script nonce="{{ csp_nonce }}">
+    const capImg = document.getElementById("captcha-img");
+    const fallback = document.getElementById("captcha-fallback");
+    if (capImg) {
+      function refreshCaptcha() {
+        capImg.src = "{{ url_for('auth.captcha_image') }}?"+Date.now();
+        if (fallback) fallback.style.display = "none";
+      }
+      capImg.addEventListener("click", refreshCaptcha);
+      capImg.addEventListener("error", () => {
+        if (fallback) fallback.style.display = "block";
+      });
+      refreshCaptcha();
+    }
+  </script>
+</body>
+</html>

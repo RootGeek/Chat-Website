@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>🧅 Account Banned</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <style>
+    :root {
+      --bg:#0f111a;
+      --panel:#1f2235;
+      --text:#c8f7c5;
+      --accent:#ff6f6f;
+      --border:rgba(255,111,111,0.3);
+      font-family: "Courier New", monospace;
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; background: var(--bg); color: var(--text); display:flex; align-items:center; justify-content:center; height:100vh; }
+    .box { background: var(--panel); padding:28px 24px; border-radius:8px; width:360px; position:relative; border:1px solid var(--accent); box-shadow:0 30px 80px -10px rgba(255,111,111,0.25); }
+    h2 { margin:0 0 12px; letter-spacing:1px; color: var(--accent); }
+    p { margin:8px 0; font-size:14px; line-height:1.4; }
+    .reason { background: rgba(255,111,111,0.08); padding:10px; border:1px solid var(--accent); border-radius:4px; margin:8px 0; word-break: break-word; }
+    a { color: var(--accent); text-decoration:none; font-weight:700; }
+    .btn { display:inline-block; margin-top:12px; padding:10px 14px; background: var(--accent); color:#0f111a; border:none; border-radius:4px; cursor:pointer; text-decoration:none; font-size:14px; }
+    .small { font-size:12px; color:#999; margin-top:6px; }
+  </style>
+  <script nonce="{{ csp_nonce }}">
+    // prevent back-navigation to a potentially authenticated page
+    history.replaceState(null, "", location.href);
+    window.addEventListener("popstate", function() {
+      window.location.href = "/auth/login";
+    });
+  </script>
+</head>
+<body>
+  <div class="box" role="document">
+    <h2>🧅 Account Banned</h2>
+    <p>Your access to the chat has been revoked.</p>
+    {% set reason_clean = reason if reason and reason|lower != 'none' else None %}
+    <div class="reason" role="alert" aria-live="polite">
+      <strong>Reason:</strong> {{ reason_clean if reason_clean else "No reason provided." }}
+    </div>
+    <p class="small">If you believe this is a mistake, contact the administrator. Your session has been terminated.</p>
+    <a href="{{ url_for('auth.login') }}" class="btn" rel="noopener">Back to Login</a>
+  </div>
+</body>
+</html>

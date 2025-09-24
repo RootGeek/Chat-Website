@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>CSRF Error</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { background:#0f111a; color:#c8f7c5; font-family: monospace; display:flex; align-items:center; justify-content:center; height:100vh; margin:0; }
+    .box { background:#1f2235; padding:24px; border-radius:8px; border:1px solid #ff5050; max-width:480px; }
+    h1 { margin-top:0; color:#ff6f6f; }
+    p { margin:8px 0; }
+    a { color:#00ff7f; text-decoration:none; font-weight:600; }
+    .btn { display:inline-block; margin-top:12px; padding:10px 14px; background: var(--accent, #00ff7f); color:#0f111a; border:none; border-radius:4px; cursor:pointer; text-decoration:none; font-size:14px; font-family: monospace; }
+    .small { font-size:12px; color:#999; margin-top:6px; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>🧅 CSRF Error</h1>
+    <p>The request could not be processed because the security token (CSRF) was missing or invalid.</p>
+    <p><strong>Details:</strong> {{ reason|e }}</p>
+    <p>Please reload the page and try again. If the problem persists, clear your cookies or contact the administrator.</p>
+    <a href="{{ url_for('auth.login') }}" class="btn">Back to Login</a>
+    <div class="small">Your session has been protected to prevent cross-site request forgery.</div>
+  </div>
+</body>
+</html>
